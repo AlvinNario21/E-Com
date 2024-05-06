@@ -1,0 +1,428 @@
+    <?php
+    session_start(); // Start session to manage user login state
+
+    // Connect to your database
+    $servername = "localhost";
+    $username = "root"; // Default MySQL username for XAMPP
+    $password = ""; // Default MySQL password for XAMPP
+    $dbname = "unboxed"; // Replace 'your_database' with your actual database name
+
+    // Create connection
+    $conn = new mysqli($servername, $username, $password, $dbname);
+
+    // Check connection
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+
+    // Check if the logout button is clicked
+    if (isset($_GET['logout'])) {
+        // Unset all session variables
+        $_SESSION = array();
+
+        // Destroy the session
+        session_destroy();
+
+        // Redirect to the login page
+        header("Location: index.php");
+        exit;
+    }
+
+    // Check if the user is logged in
+    if (isset($_SESSION["email"])) {    
+        // User is logged in, fetch the user's name and image_dp from the session
+        $name = $_SESSION["name"]; // Assuming 'name' is the column name for user's name
+        $image_dp = $_SESSION["image_dp"]; // Assuming 'image_dp' is the column name for user's image
+    
+    } else {
+        // User is not logged in, set default values
+        $name = "";
+        $image_dp = "";
+    }
+
+    // Check if the session variable is set and true (meaning "Open the Boxes" button is clicked)
+    $displayUserInfo = !(isset($_SESSION['open_boxes']) && $_SESSION['open_boxes']);
+
+    // Check if the user is logged in
+    if (isset($_SESSION["email"])) {
+        // User is logged in, fetch the user's name, contact number, and address from the database
+        $email = $_SESSION["email"]; // Assuming 'email' is the column name for user's email
+        $sql = "SELECT name, contact_num, address FROM customer WHERE email = '$email'";
+        $result = $conn->query($sql);
+
+        if ($result && $result->num_rows > 0) {
+            // Fetch user's information
+            $row = $result->fetch_assoc();
+            $name = $row["name"];
+            $contact_num = $row["contact_num"];
+            $address = $row["address"];
+        } else {
+            // Handle case when user's information is not found
+            $name = "Unknown";
+            $contact_num = "Unknown";
+            $address = "Unknown";
+        }
+    } else {
+        // Handle case when user is not logged in
+        $name = "";
+        $contact_num = "";
+        $address = "";
+    }
+
+    $productDetails = array();
+    if (isset($_POST['checked_items']) && !empty($_POST['checked_items'])) {
+        $selectedItemIDs = implode(",", array_map('intval', $_POST['checked_items']));
+        $sql = "SELECT ci.*, p.product_img, p.name as product_name, p.price as unit_price
+                FROM cart_items ci
+                INNER JOIN product p ON ci.product_id = p.product_id
+                WHERE ci.cart_item_id IN ($selectedItemIDs)";
+        $result = $conn->query($sql);
+
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $productDetails[] = $row;
+            }
+        }
+    }
+    if (isset($_POST['payment'])) {
+        // Assign the selected payment method to the $payment variable
+        $payment = $_POST['payment'];
+    } else {
+        // Default value if payment method is not selected
+        $payment = "Not selected";
+    }
+    // Assign the current date and time to the $order_date variable
+    $order_date = date("Y-m-d"); // Format: YYYY-MM-DD
+
+    // Check if the form is submitted
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Retrieve data sent via AJAX request
+$customerId = $_POST['customer_id'];
+$customerName = $_POST['customer_name'];
+$address = $_POST['address'];
+$contact = $_POST['contact'];
+$productId = $_POST['product_id'];
+$productImg = $_POST['product_img'];
+$productName = $_POST['product_name'];
+$quantity = $_POST['quantity'];
+$price = $_POST['price'];
+$totalPayment = $_POST['total_payment'];
+$paymentMethod = $_POST['payment'];
+$orderDate = $_POST['order_date'];
+
+    // Insert data into the order_item table (example)
+    // Connect to database and execute SQL query
+    // Replace the following lines with your database connection and query
+    $servername = "localhost";
+    $username = "root";
+    $password = "";
+    $dbname = "unboxed";
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+    $sql = "INSERT INTO order_item (customer_id, customer_name, address, contact, product_id) VALUES ('$customer_id', '$customer_name', '$address', '$contact', '$product_id')";
+    if ($conn->query($sql) === TRUE) {
+        echo "New record inserted successfully";
+    } else {
+        echo "Error: " . $sql . "<br>" . $conn->error;
+    }
+    $conn->close();
+}
+    ?>
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Checkout</title>
+        <!-- Option 1: Include in HTML -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+        <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
+    </head>
+    <body>
+    <div class="cart-container">
+    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+        <div class="container-fluid">
+            <div class="nav-logo">
+                <a class="navbar-brand" href="Home.php"><img src="./images/logo.png" class="logo" alt="">UNBOXED</a>
+                <p class="navbar-brand">|</p>
+                <p class="navbar-brand">Checkout</p>
+            </div>
+            <div class="navbar-nav" id="navbarLinks">
+                <a class="nav-link" href="#">ABOUT</a>
+                <a class="nav-link" href="#">FAQ</a>
+                <?php if ($displayUserInfo && !empty($name)): ?>
+                    <!-- Display user's name and image_dp -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="<?php echo $image_dp; ?>" alt="<?php echo $name; ?>" class="profile-img"> <?php echo $name; ?>
+                        </a>
+                        <ul class="dropdown-menu" id="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <a class="dropdown-item" href="Profile.php?name=<?php echo urlencode($name); ?>&image_dp=<?php echo urlencode($image_dp); ?>">Profile</a>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="?logout=1">Logout</a></li>
+                        </ul>
+                    </li>
+                <?php else: ?>
+                <!-- If user is not logged in or "Open the Boxes" button is clicked, display Sign Up and Login links -->
+                    <a class="nav-link" href="Create-Box.php">Sign Up</a>
+                    <a class="nav-link">|</a>
+                    <a class="nav-link" href="login.php">Login</a>
+                <?php endif; ?>
+
+            </div>
+        </div>
+    </nav>
+
+    <div class="address-con">
+        <div class="addresss">
+            <i class="bi bi-geo-alt-fill"></i>
+            <p>Delivery Address</p>
+        </div>
+        <div class="address-info">
+            <p><?php echo $name; ?></p>
+            <p><?php echo $contact_num; ?></p>
+            <p><?php echo $address; ?></p>
+        </div>
+    </div>
+
+    <div class="menu-checkout">
+    <div class="form-check">
+    <label class="form-check-label-out" for="flexCheckDefault">
+        Products Ordered
+    </label>
+    </div>
+    <p>Unit Price</p>
+    <p>Amount</p>
+    <p>Item Subtotal</p>
+    </div>
+
+    <form id="checkoutForm" method="POST" action="Orders.php">
+    <?php
+    // Displaying selected items moved inside PHP block
+    // Check if the selected item IDs are sent from the Cart page
+    if (isset($_POST['checked_items']) && !empty($_POST['checked_items'])) {
+        // Sanitize the input to prevent SQL injection
+        $selectedItemIDs = implode(",", array_map('intval', $_POST['checked_items']));
+
+        // Modify the SQL query to fetch only the selected items
+        $sql = "SELECT ci.*, p.product_img, p.name as product_name, p.price as unit_price
+                FROM cart_items ci
+                INNER JOIN product p ON ci.product_id = p.product_id
+                WHERE ci.cart_item_id IN ($selectedItemIDs)";
+        $result = $conn->query($sql);
+
+        $merchandiseSubtotal = 0;
+        $shippingFee = 50; // Fixed shipping fee
+
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                // Display each cart item
+                echo '<div class="product-details-checkout">';
+                echo '<div class="form-check">';
+                echo '</div>';
+                echo '<img src="' . $row['product_img'] . '" class="product-img" alt="">';
+                echo '<p class="prod-name-check">' . $row['product_name'] . '</p>';
+                echo '<p class="prod-price-check">₱' . $row['unit_price'] . '</p>';
+                echo '<p class="prod-quantity-check">' . $row['quantity'] . '</p>'; // Output the quantity from the current row
+                // Calculate total price
+                $total_price = $row['unit_price'] * $row['quantity'];
+                echo '<p class="total-price">₱' . $total_price . '</p>';
+                $merchandiseSubtotal += $total_price;
+                echo '</div>';
+            }
+        } else {
+            echo "No items selected for checkout.";
+        }
+    } else {
+        // Handle case when no items are selected
+        echo "No items selected for checkout.";
+    }
+
+    $totalPayment = $merchandiseSubtotal + $shippingFee;
+    ?>
+    <div class="total">
+    <p>₱<?php echo number_format($merchandiseSubtotal, 2); ?></p>
+        <p>Order Total (<?php echo $result->num_rows; ?> Items):</p>
+    </div>
+    <div class="payment">
+            <p class=payment-label>Payment Method</p>
+            <input type="hidden" name="payment" id="payment" value="<?php echo htmlspecialchars($payment); ?>">
+            <select name="payment" class="payment-address" aria-label="Default select example" id="paymentMethod">
+        <option <?php if ($payment == "Not selected") echo 'selected'; ?> disabled>Choose Payment Method</option>
+        <option value="Gcash" <?php if ($payment == 'Gcash') echo 'selected'; ?>>Gcash</option>
+<option value="Cash On Delivery" <?php if ($payment == 'Cash On Delivery') echo 'selected'; ?>>Cash On Delivery</option>
+    </select>
+    </div>
+    <div class="payment-details">
+    <div class="merch-total">
+        <p>₱<?php echo number_format($merchandiseSubtotal, 2); ?></p>
+        <p>Merchandise Subtotal:</p>
+    </div>
+    <div class="ship-total">
+        <p>₱<?php echo number_format($shippingFee, 2); ?></p>
+        <p>Shipping Fee:</p>
+    </div>
+    <div class="total-payment">
+        <p>Total Payment:</p>
+        <p>₱<?php echo number_format($totalPayment, 2); ?></p>
+    </div>
+
+    </div>
+
+    <div class="placeorder">
+        <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#orderConfirmationModal" id="placeOrderButton">Place Order</button>
+    </div>
+
+    <!-- Assuming you have fetched customer and product details -->
+    <!-- Initialize customer details -->
+    <?php
+    $customer_id = "$customer_id"; // Initialize customer ID
+    $customer_name = $name; // Assign customer name from session variable
+    $customer_address = $address; // Assign customer address from session variable
+    $customer_contact = $contact_num; // Assign customer contact from session variable
+    ?>
+
+    <!-- Initialize product details -->
+    <?php
+    $product_id = ""; // Initialize product ID
+    $product_img = ""; // Initialize product image URL
+    $product_name = ""; // Initialize product name
+    $quantity = ""; // Initialize product quantity
+    $unit_price = ""; // Initialize unit price
+    ?>
+
+    <!-- If you have fetched product details from the database -->
+    <?php if (!empty($productDetails)): ?>
+        <?php foreach ($productDetails as $product): ?>
+            <?php
+            $product_id = $product['product_id'];
+            $product_img = $product['product_img'];
+            $product_name = $product['product_name'];
+            $quantity = $product['quantity'];
+            $unit_price = $product['unit_price'];
+            ?>
+            <!-- Display product details here -->
+        <?php endforeach; ?>
+    <?php endif; ?>
+<!-- Modal -->
+<div class="modal fade" id="orderConfirmationModal" tabindex="-1" aria-labelledby="orderConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orderConfirmationModalLabel">Order Confirmation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="orderForm" method="POST" action="insert_order.php">
+                <div class="modal-body">
+                    <!-- Display order details here -->
+                    <p><strong>Customer ID:</strong> <?php echo isset($_SESSION['customer_id']) ? $_SESSION['customer_id'] : ''; ?></p>
+                    <p><strong>Customer Name:</strong> <?php echo $name; ?></p>
+                    <p><strong>Address:</strong> <?php echo $address; ?></p>
+                    <p><strong>Contact:</strong> <?php echo $contact_num; ?></p>
+                    <p><strong>Product ID:</strong> <?php echo $product_id; ?></p>
+                    <p><strong>Product Image:</strong> <img id="productImage" src="" alt="Product Image"><?php echo $product_img; ?></p>
+                    <p><strong>Product Name:</strong> <?php echo $product_name; ?></p>
+                    <p><strong>Quantity:</strong> <?php echo $quantity; ?></p>
+                    <p><strong>Price:</strong> ₱<?php echo $unit_price; ?></p>
+                    <p><strong>Total Payment:</strong> ₱<?php echo $totalPayment; ?></p>
+                    <p><strong>Payment Method:</strong> <span id="selectedPayment"></span></p>
+                    <p><strong>Order Date:</strong> <span id="orderDate"></span></p>
+                    <!-- Hidden inputs to pass data to PHP script -->
+                    <input type="hidden" name="customer_id" value="<?php echo $_SESSION['customer_id']; ?>">
+                    <input type="hidden" name="customer_name" value="<?php echo $name; ?>">
+                    <input type="hidden" name="address" value="<?php echo $address; ?>">
+                    <input type="hidden" name="contact" value="<?php echo $contact_num; ?>">
+                    <input type="hidden" name="product_id" value="<?php echo $product_id; ?>">
+                    <!-- Add more hidden inputs for other data if needed -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-secondary" id="confirmOrderButton">Confirm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+</form>
+
+<script>
+document.getElementById('confirmOrderButton').addEventListener('click', function() {
+    // Retrieve data from modal elements
+    var customerId = <?php echo isset($_SESSION['customer_id']) ? $_SESSION['customer_id'] : 'null'; ?>;
+    var customerName = '<?php echo $name; ?>';
+    var address = '<?php echo $address; ?>';
+    var contact = '<?php echo $contact_num; ?>';
+    var productId = '<?php echo $product_id; ?>';
+    var productImg = '<?php echo $product_img; ?>';
+    var productName = '<?php echo $product_name; ?>';
+    var quantity = '<?php echo $quantity; ?>';
+    var price = '<?php echo $unit_price; ?>';
+    var totalPayment = '<?php echo $totalPayment; ?>';
+    var paymentMethod = document.getElementById('selectedPayment').textContent;
+    var orderDate = document.getElementById('orderDate').textContent;
+
+    // Send AJAX request to PHP script
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'insert_order.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            // Handle successful insertion
+            console.log('Order placed successfully!');
+        } else {
+            // Handle error
+            console.error('Error occurred while placing order:', xhr.responseText);
+        }
+    };
+    xhr.send('customer_id=' + customerId + '&customer_name=' + customerName + '&address=' + address + '&contact=' + contact +
+             '&product_id=' + productId + '&product_img=' + productImg + '&product_name=' + productName + '&quantity=' + quantity +
+             '&price=' + price + '&total_payment=' + totalPayment + '&payment=' + paymentMethod + '&order_date=' + orderDate);
+});
+
+
+document.getElementById('orderConfirmationModal').addEventListener('show.bs.modal', function (event) {
+    var modal = document.getElementById('orderConfirmationModal');
+    // Update modal content based on selected payment method
+    modal.querySelector('#selectedPayment').textContent = document.getElementById('paymentMethod').value;
+
+    // Get the current date and format it as "Y-m-d"
+    var currentDate = new Date();
+    var formattedDate = currentDate.getFullYear() + '-' + ('0' + (currentDate.getMonth() + 1)).slice(-2) + '-' + ('0' + currentDate.getDate()).slice(-2);
+    
+    // Set the formatted date in the modal
+    modal.querySelector('#orderDate').textContent = formattedDate;
+});
+
+document.getElementById('confirmOrderButton').addEventListener('click', function() {
+    // Trigger form submission
+    document.getElementById('checkoutForm').submit();
+});
+
+document.getElementById('placeOrderButton').addEventListener('click', function() {
+    // Retrieve payment method from the dropdown
+    var payment = document.getElementById('paymentMethod').value;
+    console.log("Selected payment method:", payment); // Debugging statement
+    // Set the payment value in the hidden input field
+    document.getElementById('payment').value = payment;
+
+    // Get the current date and format it as "Y-m-d"
+    var currentDate = new Date();
+    var formattedDate = currentDate.getFullYear() + '-' + ('0' + (currentDate.getMonth() + 1)).slice(-2) + '-' + ('0' + currentDate.getDate()).slice(-2);
+    // Set the formatted date in the hidden input field
+    document.getElementById('order_date').value = formattedDate;
+
+    // Trigger form submission
+    document.getElementById('checkoutForm').submit();
+});
+</script>
+    </body>
+    </html>
+    <?php
+    $conn->close(); // Close the connection
+    ?>
